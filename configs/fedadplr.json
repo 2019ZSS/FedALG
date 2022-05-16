@@ -1,0 +1,23 @@
+{
+    "alg": "fedadplr", 
+    "gpu": "0", 
+    "num_of_clients": 10, 
+    "cfraction": 1, 
+    "epoch": 1, 
+    "batchsize": 10, 
+    "model_name": "mnist_linear", 
+    "learning_rate": 0.01, 
+    "dataset": "mnist", 
+    "val_freq": 30, 
+    "save_freq": 30, 
+    "num_comm": 30, 
+    "save_path": "./checkpoints", 
+    "IID": 0, 
+    "beta": 0.99, 
+    "min_lr": 0.000001, 
+    "weight_decay": 0.99, 
+    "shuffle": true, 
+    "pre_t": 3, 
+    "init_model": "./checkpoints/parmas/IID_1/mnist_v2_fedavg_mnist_linear_10",
+    "eps": 1.0
+}

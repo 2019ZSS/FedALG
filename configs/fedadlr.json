@@ -1,0 +1,21 @@
+{
+    "alg": "fedadlr", 
+    "gpu": "0", 
+    "num_of_clients": 10, 
+    "cfraction": 1, 
+    "epoch": 1, 
+    "batchsize": 10, 
+    "model_name": "mnist_linear", 
+    "learning_rate": 0.01, 
+    "dataset": "mnist", 
+    "val_freq": 50, 
+    "save_freq": 50, 
+    "num_comm": 50, 
+    "save_path": "./checkpoints", 
+    "IID": 0, 
+    "beta": 0.99, 
+    "min_lr": 1e-06, 
+    "weight_decay": 0.99, 
+    "shuffle": true, 
+    "eps": 1.0
+}
