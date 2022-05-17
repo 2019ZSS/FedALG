@@ -19,13 +19,13 @@ pip install -r requirements.txt
 ### Datasets
 
 1. MINST
-3. EMINST
-4. Cifar10
+2. EMINST
+3. Cifar10
 
 ### Usage
 
 Run the code
 
 ```asp
-python server.py -config_path ./configs/fedavg.json
+python main.py -config_path ./configs/fedavg.json
 ```
