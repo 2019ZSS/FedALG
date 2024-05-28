@@ -24,7 +24,7 @@ pip install -r requirements.txt
 
 ### Usage
 
-Run the code
+运行方式: Run the code
 
 ```asp
 python main.py -config_path ./configs/fedavg.json
