@@ -4,24 +4,14 @@ sys.path.append(os.path.dirname(__file__) + os.sep + '../')
 import torch
 from tqdm import tqdm
 from utils import BaseServer
+import math 
 
 
-class FedAVGServer(BaseServer):
+class FedCOSServer(BaseServer):
 
     def __init__(self, args):
-        super(FedAVGServer, self).__init__(args=args)
+        super(FedCOSServer, self).__init__(args=args)
         self.is_local_acc = args['is_local_acc'] if 'is_local_acc' in args else False
-        optimers = {}
-        for i in range(self.args['num_of_clients']):
-            opt_list = []
-            for name, params in self.net.named_parameters():
-                opt_d = {
-                    'params': params,
-                    'params_name': name,
-                }
-                opt_list.append(opt_d)
-            optimers['client{}'.format(i)] = torch.optim.SGD(opt_list, lr=self.args['learning_rate'])
-        self.optimers = optimers
 
     def run(self):
         accuracy_list = []
@@ -36,11 +26,6 @@ class FedAVGServer(BaseServer):
         accuracy, loss = self.eval(t=0)
         accuracy_list.append(accuracy)
         loss_list.append(loss)
-        max_bound = {
-            'max_local_grad_bound': 0,
-            'max_L_bound': 0
-        }
-        max_bound = None
         for t in range(self.num_comm):
             print("communicate round {}".format(t + 1))
             clients_in_comm, theta_list = self.sample()
@@ -49,13 +34,21 @@ class FedAVGServer(BaseServer):
             cur_phi = 0
             for client in tqdm(clients_in_comm):
                 local_parameters = self.myClients.clients_set[client].localUpdate(self.args['epoch'], self.args['batchsize'], self.net,
-                                                                            self.loss_func, self.optimers[client], self.global_parameters, max_bound)
+                                                                            self.loss_func, self.optimers[client], self.global_parameters)
                 
                 if self.is_local_acc and t == self.num_comm - 1:
                     self.local_eval(t=t, local_parameters=local_parameters, client=client)
+                
+                x_1, x_2, x_3 = 0.0, 0.0, 0.0
+                for var in local_parameters:
+                    x_1 = x_1 + float(local_parameters[var].reshape(-1).float().dot(self.global_parameters_parameters[var].reshape(-1).float()))
+                    x_2 = x_2 + float(local_parameters[var].reshape(-1).float().dot(local_parameters[var].reshape(-1).float()))
+                    x_3 = x_3 + float(self.global_parameters_parameters[var].reshape(-1).float().dot(self.global_parameters_parameters[var].reshape(-1).float()))
 
                 for var in local_parameters:
-                    cur_phi += theta_list[client] * float(local_parameters[var].reshape(-1).float().dot(local_parameters[var].reshape(-1).float()))
+                    theta_cli = math.acos(x_1 / (x_2 * x_3))
+                    cur_phi += math.cos(theta_cli) * float(local_parameters[var].reshape(-1).float().dot(local_parameters[var].reshape(-1).float()))
+
 
                 if sum_parameters is None:
                     sum_parameters = {}
@@ -77,8 +70,6 @@ class FedAVGServer(BaseServer):
             print('accuracy: ' + str(accuracy) + "\n")
             self.test_txt.write("communicate round " + str(t + 1) + " ")
             self.test_txt.write('accuracy: ' + str(accuracy) + "\n") 
-            if max_bound is not None:
-                print('max_local_grad_bound={}, max_L_bound={}'.format(max_bound['max_local_grad_bound'], max_bound['max_L_bound']))
 
         s = 'dataset_{}_IID_{}_{}_{}_cli_{}_frac_{}_local_e_{}'.format(self.args['dataset'], self.args['IID'], self.args['alg'], 
                         self.args['model_name'], self.args['num_of_clients'], self.args["cfraction"], self.args['epoch'])
@@ -93,6 +84,5 @@ class FedAVGServer(BaseServer):
         print('phi_list={}'.format(phi_list))
         print('accuracy_list={}'.format(accuracy_list))
         print('loss_list={}'.format(loss_list))
-        if max_bound is not None:
-            print('max_local_grad_bound={}, max_L_bound={}'.format(max_bound['max_local_grad_bound'], max_bound['max_L_bound']))
+        
             

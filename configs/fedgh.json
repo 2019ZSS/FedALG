@@ -1,0 +1,17 @@
+{
+    "alg": "fedgh", 
+    "gpu": "0", 
+    "num_of_clients": 100, 
+    "cfraction": 0.2, 
+    "epoch": 5, 
+    "batchsize": 64, 
+    "model_name": "mnist_cnn", 
+    "learning_rate": 0.1, 
+    "dataset": "mnist", 
+    "val_freq": 50, 
+    "save_freq": 50, 
+    "num_comm": 50, 
+    "rearrange": 0,
+    "save_path": "./checkpoints", 
+    "IID": 1
+}

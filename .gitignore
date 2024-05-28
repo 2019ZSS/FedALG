@@ -4,7 +4,17 @@ images
 logs
 test_accuracy.txt
 test_*.ipynb 
-
+outs
+simu.py
+.vscode/
+log.txt
+d_e_output.txt
+s_d_output.txt 
+test*.py
+test*.txt
+solve*.py
+plot_mnist.ipynb
+plot 
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

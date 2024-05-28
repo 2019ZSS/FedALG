@@ -4,6 +4,11 @@ from .AlexNet import (
     AlexNet,
 )
 
+from .Cifar import (
+    Cifar_CNN,
+    CIFAR10Model,
+)
+
 from .DenseNet import (
     DenseNet,
 )
@@ -13,7 +18,9 @@ from .GoogleNet import (
 )
 
 from .LeNet import (
-    LeNet
+    LeNet,
+    LeNet5,
+    LeNet_EM,
 )
 
 from .Mnist import (
@@ -32,7 +39,11 @@ from .ResNet import (
 )
 
 from .VGG import (
-    VGG
+    VGG,
+    VGG11,
+    VGG13,
+    VGG16,
+    VGG19,
 )
 
 

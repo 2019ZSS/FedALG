@@ -1,0 +1,21 @@
+{
+    "alg": "fedaoi",
+    "gpu": "0", 
+    "num_of_clients": 50, 
+    "cfraction": 1.0, 
+    "epoch": 5, 
+    "batchsize": 32, 
+    "model_name": "cifar10_cnn", 
+    "learning_rate": 0.05, 
+    "dataset": "cifar10",
+    "val_freq": 50, 
+    "save_freq": 50, 
+    "num_comm": 100, 
+    "save_path": "./checkpoints", 
+    "IID": 1,
+    "rearrange": 0,
+    "resize": 32,
+    "alpha": 0.1,
+    "fine_tuning_epochs": 1,
+    "parmas_mode": true
+}

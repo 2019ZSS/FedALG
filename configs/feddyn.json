@@ -1,0 +1,21 @@
+{
+    "alg": "feddyn", 
+    "gpu": "0", 
+    "num_of_clients": 10, 
+    "cfraction": 1, 
+    "epoch": 5, 
+    "batchsize": 10, 
+    "model_name": "cifar10_cnn", 
+    "learning_rate": 0.001, 
+    "dataset": "cifar10", 
+    "val_freq": 100, 
+    "save_freq": 100, 
+    "num_comm": 100, 
+    "save_path": "./checkpoints", 
+    "IID": 0,
+    "resize": 32,
+    "alpha": 0.1,
+    "parmas_mode": true,
+    "is_local_acc": true, 
+    "dyn_alpha": 0.001
+}

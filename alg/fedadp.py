@@ -14,7 +14,7 @@ class FedADPServer(BaseServer):
         self.beta_1 = args['beta_1']
         self.beta_2 = args['beta_2']
         self.tau = args['tau']
-
+        self.is_local_acc = args['is_local_acc'] if 'is_local_acc' in args else False
         self.diff_t = {}
         self.vt = {}
         for key, var in self.net.state_dict().items():
@@ -24,12 +24,15 @@ class FedADPServer(BaseServer):
     def run(self):
         accuracy_list = []
         phi_list = []
+        loss_list = []
         if 'parmas_mode' in self.args:
             model_save_dir = './checkpoints/parmas/IID_{}/{}_{}_{}_{}'.format(self.args['IID'], self.args['dataset'], self.args['alg'], 
                         self.args['model_name'], self.args['num_of_clients'])
             if not os.path.exists(model_save_dir):
-                os.mkdir(model_save_dir)
-
+                os.makedirs(model_save_dir)
+        accuracy, loss = self.eval(t=0)
+        accuracy_list.append(accuracy)
+        loss_list.append(loss)
         for t in range(self.num_comm):
             print("communicate round {}".format(t + 1))
             clients_in_comm, theta_list = self.sample()
@@ -39,8 +42,12 @@ class FedADPServer(BaseServer):
             for client in tqdm(clients_in_comm):
                 local_parameters = self.myClients.clients_set[client].localUpdate(self.args['epoch'], self.args['batchsize'], self.net,
                                                                             self.loss_func, self.optimers[client], self.global_parameters)
+                
+                if self.is_local_acc and t == self.num_comm - 1:
+                    self.local_eval(t=t, local_parameters=local_parameters, client=client)
+
                 for var in local_parameters:
-                    cur_phi += theta_list[client] * float(local_parameters[var].reshape(-1).dot(local_parameters[var].reshape(-1)))
+                    cur_phi += theta_list[client] * float(local_parameters[var].reshape(-1).float().dot(local_parameters[var].reshape(-1).float()))
 
                 for var in local_parameters:
                     if var not in sum_parameters:
@@ -65,16 +72,25 @@ class FedADPServer(BaseServer):
             if 'parmas_mode' in self.args:
                 torch.save(self.net.state_dict(), os.path.join(model_save_dir, '{}.pth'.format(t + 1)))
             
-            accuracy = self.eval(t=t)
+            accuracy, loss = self.eval(t=t)
             accuracy_list.append(accuracy)
+            loss_list.append(loss)
             print('accuracy: ' + str(accuracy) + "\n")
             self.test_txt.write("communicate round " + str(t + 1) + " ")
             self.test_txt.write('accuracy: ' + str(accuracy) + "\n") 
 
-        self.test_txt.write('phi_list={}'.format(phi_list))
+        # self.test_txt.write('phi_list={}'.format(phi_list))
+        s = 'dataset_{}_IID_{}_{}_{}_cli_{}_frac_{}_local_e_{}'.format(self.args['dataset'], self.args['IID'], self.args['alg'], 
+                        self.args['model_name'], self.args['num_of_clients'], self.args["cfraction"], self.args['epoch'])
+        self.test_txt.write(s + " start\n")
+        self.test_txt.write("\n")
         self.test_txt.write('accuracy_list={}'.format(accuracy_list))
+        self.test_txt.write("\n")
+        self.test_txt.write('loss_list={}'.format(loss_list))
+        self.test_txt.write("end\n")
         self.test_txt.close()
         print('phi_list={}'.format(phi_list))
         print('accuracy_list={}'.format(accuracy_list))
+        print('loss_list={}'.format(loss_list))
         
             

@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader
 from getData import GetDataSet, MyDataset
 import sympy 
 from sympy import Matrix, Symbol, false, log, posify
+import random
 
 
 class client(object):
@@ -39,6 +40,31 @@ class client(object):
                 preds = Net(data)
                 loss = lossFun(preds, label)
                 opti.zero_grad()
+                loss.backward()
+                opti.step()
+        return Net.state_dict()
+    
+    def localUpdate_prox(self, localEpoch, localBatchSize, Net, lossFun, opti, global_parameters, prox_mu):
+        '''
+            param: localEpoch 当前Client的迭代次数
+            param: localBatchSize 当前Client的batchsize大小
+            param: Net Server共享的模型
+            param: LossFun 损失函数
+            param: opti 优化函数
+            param: global_parmeters 当前通讯中最全局参数
+            return: 返回当前Client基于自己的数据训练得到的新的模型参数
+        '''
+        Net.load_state_dict(global_parameters, strict=True)
+        self.train_dl = DataLoader(self.train_ds, batch_size=localBatchSize, shuffle=True)
+        for epoch in range(localEpoch):
+            for data, label in self.train_dl:
+                data, label = data.to(self.dev), label.to(self.dev)
+                preds = Net(data)
+                opti.zero_grad()
+                proximal_term = 0.0
+                for w, w_t in zip(Net.parameters(), global_parameters.parameters()):
+                    proximal_term += (w - w_t).norm(2)
+                loss = lossFun(preds, label) + (prox_mu / 2) * proximal_term
                 loss.backward()
                 opti.step()
         return Net.state_dict()
@@ -248,14 +274,13 @@ class client(object):
         with torch.no_grad():
             for group in opti.param_groups:
                 var = group['params_name']
-                # group['params'][0].grad = group['params'][0].grad / len(self.train_dl)
                 grad = group['params'][0].grad.reshape(-1)
                 w_t = global_parameters[var].reshape(-1)
                 w_next_t = next_params[var].reshape(-1)
                 # print(grad.device, w_t.device, w_next_t.device)
                 item1 += grad.dot(w_t - w_next_t)
                 item2 +=  grad.dot(grad)
-        lr = item1 / (1.0 + item2)
+        lr = (weight_decay * item1) / (1.0 - weight_decay + weight_decay * item2)
         if lr <= 0:
             lr = min_lr
 
@@ -279,20 +304,21 @@ class ClientsGroup(object):
         param: dev 设备(GPU)
         param: clients_set 客户端
     '''
-    def __init__(self, dataSetName, isIID, numOfClients, dev, alpha=1.0):
+    def __init__(self, dataSetName, isIID, numOfClients, dev, alpha=1.0, num_items=None, resize=224):
         self.data_set_name = dataSetName
         self.is_iid = isIID
         self.num_of_clients = numOfClients
         self.dev = dev
         self.alpha = alpha
         self.clients_set = {}
-
+        self.num_items = num_items
         self.test_data_loader = None
+        self.resize = resize
 
-        if self.data_set_name in ('mnist_v2', 'emnist', 'cifa10'):
-            self.dataset_allocation()
-        else:
+        if  self.data_set_name in ('mnist'):
             self.dataSetBalanceAllocation()
+        else:
+            self.dataset_allocation()
 
     def dataSetBalanceAllocation(self):
 
@@ -360,7 +386,7 @@ class ClientsGroup(object):
 
 
     def dataset_allocation(self):
-        dataset = GetDataSet(self.data_set_name, self.is_iid)
+        dataset = GetDataSet(self.data_set_name, self.is_iid, self.resize)
         
         test_data = dataset.test_data
         test_label = dataset.test_label
@@ -369,7 +395,7 @@ class ClientsGroup(object):
         train_label = dataset.train_label
         
         np.random.seed(42)
-        if self.is_iid:
+        if self.is_iid == 1:
             all_idxs = [i for i in range(dataset.train_data_size)]
             num_items = int(dataset.train_data_size / self.num_of_clients)
             client_idcs = []
@@ -378,6 +404,28 @@ class ClientsGroup(object):
                 all_idxs = list(set(all_idxs) - client_idcs[-1])
             for i in range(len(client_idcs)):
                 client_idcs[i] = np.array(list(client_idcs[i]))
+        elif self.is_iid == 2:
+            all_idxs = [i for i in range(dataset.train_data_size)]
+            num_items = self.num_items
+            client_idcs = []
+            for i in range(self.num_of_clients):
+                client_idcs.append(set(np.random.choice(all_idxs, num_items[i], replace=False)))
+                all_idxs = list(set(all_idxs) - client_idcs[-1])
+            for i in range(len(client_idcs)):
+                client_idcs[i] = np.array(list(client_idcs[i]))
+        elif self.is_iid == -1:
+            all_idxs = [i for i in range(dataset.train_data_size)]
+            num_items = self.num_items
+            client_idcs = []
+            for i in range(self.num_of_clients):
+                client_idcs.append(set(np.random.choice(all_idxs, num_items[i], replace=False)))
+                all_idxs = list(set(all_idxs) - client_idcs[-1])
+            for i in range(len(client_idcs)):
+                client_idcs[i] = np.array(list(client_idcs[i]))
+            order = np.concatenate(client_idcs)
+            train_data = dataset.train_data[order]
+            train_label = dataset.train_label[order]
+            client_idcs = self.dirichlet_split_noniid(train_labels=train_label, alpha=self.alpha, n_clients=self.num_of_clients)
         else:
             client_idcs = self.dirichlet_split_noniid(train_labels=np.array(dataset.train_label), alpha=self.alpha, n_clients=self.num_of_clients)
 
@@ -393,13 +441,14 @@ class ClientsGroup(object):
         import matplotlib.pyplot as plt
         num_cls = dataset.num_cls
         train_labels = np.array(dataset.train_label)
-        plt.hist([train_labels[idc] for idc in client_idcs], stacked=True, bins=np.arange(min(train_labels)-0.5, max(train_labels) + 1.5, 1),
+        plt.hist([train_labels[idc] for idc in client_idcs], stacked=True, bins=np.arange(min(train_labels) - 0.5, max(train_labels) + 1.5, 1),
                     label=["Client {}".format(i) for i in range(self.num_of_clients)], rwidth=0.5)
+        # print(["Client {}".format(i) for i in range(self.num_of_clients)])
         plt.xticks(np.arange(num_cls), dataset.train_data_classes)
+        plt.legend(["Client {}".format(i) for i in range(self.num_of_clients)])
         plt.title('data={}_iid_set={}'.format(self.data_set_name, self.is_iid))
-        plt.savefig('./images/data/data={}_settings={}_clients={}.png'.format(self.data_set_name, self.is_iid, self.num_of_clients), bbox_inches='tight')
-        plt.savefig('./images/data/data={}_settings={}_clients={}.eps'.format(self.data_set_name, self.is_iid, self.num_of_clients), bbox_inches='tight')
-        # plt.legend()
+        plt.savefig('./images/noniid/data={}_settings={}_alpha={}.png'.format(self.data_set_name, self.is_iid, self.alpha), bbox_inches='tight')
+        plt.savefig('./images/noniid/data={}_settings={}_alpha={}.eps'.format(self.data_set_name, self.is_iid, self.alpha), bbox_inches='tight')
         # plt.show()
 
 

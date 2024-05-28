@@ -22,16 +22,19 @@ class FedADLRServer(BaseServer):
         self.min_lr = args['min_lr']
         self.weight_decay = args['weight_decay'] if 'weight_decay' in args else 0.99
         self.shuffle = args['shuffle'] if 'shuffle' in args else True
+        self.is_approx = args['is_approx'] if 'is_approx' in args else False
 
     def init_params(self):
         global_parameters = {}
         for m in self.net.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-                nn.init.constant_(m.bias, 0)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.Linear):
                 nn.init.normal_(m.weight, 0, 0.01)
-                nn.init.constant_(m.bias, 0)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
 
         for key, var in self.net.state_dict().items():
             global_parameters[key] = var.clone()
@@ -59,10 +62,11 @@ class FedADLRServer(BaseServer):
                         self.args['model_name'], self.args['num_of_clients'])
             if not os.path.exists(model_save_dir):
                 os.mkdir(model_save_dir)
-
+        accuracy_list.append(self.eval(t=0))
+        print(accuracy_list[-1])
         phi_t = 0.0
         for var in self.global_parameters:
-            phi_t += float(self.global_parameters[var].reshape(-1).dot(self.global_parameters[var].reshape(-1)))
+            phi_t += float(self.global_parameters[var].reshape(-1).float().dot(self.global_parameters[var].reshape(-1).float()))
 
         for t in range(self.num_comm):
             print("communicate round {}".format(t + 1))
@@ -76,14 +80,14 @@ class FedADLRServer(BaseServer):
                                                 localEpoch=self.args['epoch'], localBatchSize=self.args['batchsize'], Net=self.net, 
                                                 lossFun=self.loss_func, opti=self.optimers[client], global_parameters=self.global_parameters, 
                                                 client=client, t=t, phi_t=phi_t, theta_i=theta_list[client],  shuffle=self.shuffle, 
-                                                beta=self.beta, min_lr=self.min_lr, weight_decay=self.weight_decay)
+                                                beta=self.beta, min_lr=self.min_lr, weight_decay=self.weight_decay, is_approx=self.is_approx)
                 lr = 0.0
                 for param in self.optimers[client].param_groups:
                     lr = param['lr']
                     break
                 clients_lr[client] = lr
                 for var in local_parameters:
-                    next_phi_t += theta_list[client] * float(local_parameters[var].reshape(-1).dot(local_parameters[var].reshape(-1)))
+                    next_phi_t += theta_list[client] * float(local_parameters[var].reshape(-1).float().dot(local_parameters[var].float().reshape(-1)))
 
                 if sum_parameters is None:
                     sum_parameters = {}

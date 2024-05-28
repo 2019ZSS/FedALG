@@ -1,0 +1,21 @@
+{
+    "alg": "fedprox", 
+    "gpu": "0", 
+    "num_of_clients": 20, 
+    "cfraction": 1.0, 
+    "epoch": 5, 
+    "batchsize": 10, 
+    "model_name": "mnist_cnn", 
+    "learning_rate": 0.01, 
+    "dataset": "mnist", 
+    "val_freq": 100, 
+    "save_freq": 100, 
+    "num_comm": 30, 
+    "save_path": "./checkpoints", 
+    "IID": 1,
+    "resize": 32,
+    "alpha": 0.1,
+    "parmas_mode": true,
+    "is_local_acc": true, 
+    "prox_mu": 0.001
+}

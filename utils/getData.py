@@ -16,7 +16,8 @@ class MyDataset(torch.utils.data.Dataset):
 
     def __init__(self, data_tensor, target_tensor=None, transforms=None, target_transforms=None):
         if target_tensor is not None:
-            assert data_tensor.size(0) == target_tensor.size(0)
+            if torch.is_tensor(data_tensor) and torch.is_tensor(target_tensor):
+                assert data_tensor.size(0) == target_tensor.size(0)
         self.data_tensor = data_tensor
         self.target_tensor = target_tensor
 
@@ -49,11 +50,30 @@ class MyDataset(torch.utils.data.Dataset):
         return data_tensor, target_tensor
 
     def __len__(self):
-        return self.data_tensor.size(0)
+        return self.data_tensor.shape[0]
+
+
+class PartialDataset(torch.utils.data.Dataset):
+    '''
+    A simple loading dataset - loads the tensor that are passed in input. This is the same as
+    torch.utils.data.TensorDataset except that you can add transformations to your data and target tensor.
+    Target tensor can also be None, in which case it is not returned.
+    '''
+    def __init__(self, dataset, indices):
+       self.dataset = dataset
+       self.indices = indices
+
+    def __getitem__(self, index):
+
+        return self.dataset[self.indices[index]]
+
+    def __len__(self):
+        return len(self.indices)
+
 
 
 class GetDataSet(object):
-    def __init__(self, dataSetName, isIID):
+    def __init__(self, dataSetName, isIID, resize=224, split="letters"):
         self.name = dataSetName
         self.num_cls = None # 数据集类别数量
         self.train_data = None # 训练集
@@ -65,6 +85,8 @@ class GetDataSet(object):
         self.test_label = None  # 测试的标签
         self.test_data_size = None # 测试集数据Size
         self.test_transforms = None
+        self.resize=resize
+        self.split=split
         
         self._index_in_train_epoch = 0
         if self.name == 'mnist':
@@ -75,6 +97,10 @@ class GetDataSet(object):
             self.load_mnist_data()
         elif self.name == 'emnist':
             self.load_emnist_data()
+        elif self.name == 'cifar100':
+            self.load_cifar100_data()
+        elif self.name == 'svhn':
+            self.load_svhn_data()            
         else:
             pass
     
@@ -116,12 +142,12 @@ class GetDataSet(object):
             transforms.Normalize((0.1735879,), (0.32482338,))]
         )
         try:
-            train_data = torchvision.datasets.EMNIST(root="./data/", split="byclass", download=True, train=True, transform=train_transforms)
-            test_data = torchvision.datasets.EMNIST(root="./data/", split="byclass", download=True, train=False, transform=test_transforms)
+            train_data = torchvision.datasets.EMNIST(root="./data/", split=self.split, download=True, train=True, transform=train_transforms)
+            test_data = torchvision.datasets.EMNIST(root="./data/", split=self.split, download=True, train=False, transform=test_transforms)
         except Exception as e:
             print(e)
-            train_data = torchvision.datasets.EMNIST(root="./data/", split="byclass", download=False, train=True, transform=train_transforms)
-            test_data = torchvision.datasets.EMNIST(root="./data/", split="byclass", download=False, train=False, transform=test_transforms)
+            train_data = torchvision.datasets.EMNIST(root="./data/", split=self.split, download=False, train=True, transform=train_transforms)
+            test_data = torchvision.datasets.EMNIST(root="./data/", split=self.split, download=False, train=False, transform=test_transforms)
 
         self.num_cls =  len(train_data.classes)
         self.train_data_classes = train_data.classes
@@ -135,25 +161,93 @@ class GetDataSet(object):
         self.test_transforms = test_transforms
 
     def load_cifar10_data(self):
-        train_transforms = transforms.Compose([transforms.RandomHorizontalFlip(), 
+        train_transforms = transforms.Compose([
+                    transforms.ToPILImage(),
+                    transforms.Resize(self.resize),
+                    transforms.RandomHorizontalFlip(), 
                     transforms.ToTensor(), 
-                    transforms.Normalize((0.4914, 0.4822, 0.4465), (0,2033, 0.1994, 0.2010))])
+                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                    # transforms.Normalize((0.4914, 0.4822, 0.4465), (0,2033, 0.1994, 0.2010))
+                    ])
         test_transforms = transforms.Compose([
+                    transforms.ToPILImage(),
+                    transforms.Resize(self.resize),
                     transforms.ToTensor(),
-                    transforms.Normalize((0.4914, 0.4822, 0.4465), (0,2033, 0.1994, 0.2010))])
-        train_data = torchvision.datasets.CIFAR10(root='./data', train=True, download=True,
-                                                 transform=train_transforms)
+                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                    # transforms.Normalize((0.4914, 0.4822, 0.4465), (0,2033, 0.1994, 0.2010))
+                    ])
+        train_data = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=train_transforms)
         test_data = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=test_transforms)
         self.num_cls =  len(train_data.classes)
         self.train_data_classes = train_data.classes
-        self.train_data = train_data.data
-        self.train_label = train_data.targets
+        self.train_data = torch.tensor(train_data.data).permute(0, 3, 1, 2)
+        self.train_label = torch.tensor(train_data.targets)
         self.train_data_size = train_data.data.shape[0]
         self.train_transforms = train_transforms
-        self.test_data = test_data.data
-        self.test_label = test_data.targets
+        self.test_data = torch.tensor(test_data.data).permute(0, 3, 1, 2)
+        self.test_label = torch.tensor(test_data.targets)
         self.test_data_size = test_data.data.shape[0]
         self.test_transforms = test_transforms
+
+    def load_cifar100_data(self):
+        train_transforms = transforms.Compose([
+                    transforms.ToPILImage(),
+                    transforms.Resize(self.resize),
+                    transforms.RandomHorizontalFlip(), 
+                    transforms.ToTensor(), 
+                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                    # transforms.Normalize((0.4914, 0.4822, 0.4465), (0,2033, 0.1994, 0.2010))
+                    ])
+        test_transforms = transforms.Compose([
+                    transforms.ToPILImage(),
+                    transforms.Resize(self.resize),
+                    transforms.ToTensor(),
+                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                    # transforms.Normalize((0.4914, 0.4822, 0.4465), (0,2033, 0.1994, 0.2010))
+                    ])
+        train_data = torchvision.datasets.CIFAR100(root='./data', train=True, download=True, transform=train_transforms)
+        test_data = torchvision.datasets.CIFAR100(root='./data', train=False, download=True, transform=test_transforms)
+        self.num_cls =  len(train_data.classes)
+        self.train_data_classes = train_data.classes
+        self.train_data = torch.tensor(train_data.data).permute(0, 3, 1, 2)
+        self.train_label = torch.tensor(train_data.targets)
+        self.train_data_size = train_data.data.shape[0]
+        self.train_transforms = train_transforms
+        self.test_data = torch.tensor(test_data.data).permute(0, 3, 1, 2)
+        self.test_label = torch.tensor(test_data.targets)
+        self.test_data_size = test_data.data.shape[0]
+        self.test_transforms = test_transforms 
+
+    def load_svhn_data(self):
+        train_transforms = transforms.Compose([
+                    transforms.ToPILImage(),
+                    transforms.Resize(self.resize),
+                    transforms.RandomHorizontalFlip(), 
+                    transforms.ToTensor(), 
+                    transforms.Normalize((0.4377, 0.4438, 0.4728), (0.1980, 0.2010, 0.1970)),
+                    # transforms.Normalize((0.4914, 0.4822, 0.4465), (0,2033, 0.1994, 0.2010))
+                    ])
+        test_transforms = transforms.Compose([
+                    transforms.ToPILImage(),
+                    transforms.Resize(self.resize),
+                    transforms.ToTensor(),
+                    transforms.Normalize((0.4377, 0.4438, 0.4728), (0.1980, 0.2010, 0.1970)),
+                    # transforms.Normalize((0.4914, 0.4822, 0.4465), (0,2033, 0.1994, 0.2010))
+                    ])
+        train_data = torchvision.datasets.SVHN(root='./data', split='train', download=True, transform=train_transforms)
+        test_data = torchvision.datasets.SVHN(root='./data', split='test', download=True, transform=test_transforms)
+        
+        class_names = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+        self.num_cls =  len(class_names)
+        self.train_data_classes = class_names
+        self.train_data = torch.tensor(train_data.data).permute(0, 1, 2, 3)
+        self.train_label = torch.tensor(train_data.labels)
+        self.train_data_size = train_data.data.shape[0]
+        self.train_transforms = train_transforms
+        self.test_data = torch.tensor(test_data.data).permute(0, 1, 2, 3)
+        self.test_label = torch.tensor(test_data.labels)
+        self.test_data_size = test_data.data.shape[0]
+        self.test_transforms = test_transforms  
 
     def mnistDataSetConstruct(self, isIID):
         data_dir = r'./data/MNIST'
@@ -210,7 +304,7 @@ class GetDataSet(object):
         train_data = train_set.data  # (50000, 32, 32, 3)
         train_labels = train_set.targets
         train_labels = np.array(train_labels)  # 将标签转化为
-        print(type(train_labels))  # <class 'numpy.ndarray'>
+        print(type(train_labels))  # <class 'numpy.ndarray'>s
         print(train_labels.shape)  # (50000,)
 
         test_data = test_set.data  # 测试数据

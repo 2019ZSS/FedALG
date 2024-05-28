@@ -56,7 +56,7 @@ class MyDataset(torch.utils.data.Dataset):
 
 
 class GetDataSet(object):
-    def __init__(self, dataSetName, isIID):
+    def __init__(self, dataSetName, isIID, resize=224):
         self.name = dataSetName
         self.num_cls = None # 数据集类别数量
         self.train_data = None # 训练集
@@ -68,6 +68,7 @@ class GetDataSet(object):
         self.test_label = None  # 测试的标签
         self.test_data_size = None # 测试集数据Size
         self.test_transforms = None
+        self.resize=resize
         
         self._index_in_train_epoch = 0
         if self.name == 'mnist':
@@ -85,12 +86,12 @@ class GetDataSet(object):
         train_transforms = transforms.Compose(
             [transforms.ToPILImage(),
             transforms.ToTensor(), 
-            transforms.Normalize((0.13065973,), (0.3015038,))
+            # transforms.Normalize((0.13065973,), (0.3015038,))
             ])
         test_transforms = transforms.Compose(
             [transforms.ToPILImage(),
             transforms.ToTensor(), 
-            transforms.Normalize((0.13065973,), (0.3015038,))
+            # transforms.Normalize((0.13065973,), (0.3015038,))
             ])
         train_data = torchvision.datasets.MNIST(root="./data", download=True, train=True, transform=train_transforms)
         test_data = torchvision.datasets.MNIST(root="./data", download=True, train=False, transform=test_transforms)
@@ -138,25 +139,33 @@ class GetDataSet(object):
         self.test_transforms = test_transforms
 
     def load_cifar10_data(self):
-        train_transforms = transforms.Compose([transforms.RandomHorizontalFlip(), 
+        train_transforms = transforms.Compose([
+                    transforms.ToPILImage(),
+                    transforms.Resize(self.resize),
+                    transforms.RandomHorizontalFlip(), 
                     transforms.ToTensor(), 
-                    transforms.Normalize((0.4914, 0.4822, 0.4465), (0,2033, 0.1994, 0.2010))])
+                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                    # transforms.Normalize((0.4914, 0.4822, 0.4465), (0,2033, 0.1994, 0.2010))
+                    ])
         test_transforms = transforms.Compose([
+                    transforms.ToPILImage(),
+                    transforms.Resize(self.resize),
                     transforms.ToTensor(),
-                    transforms.Normalize((0.4914, 0.4822, 0.4465), (0,2033, 0.1994, 0.2010))])
-        train_data = torchvision.datasets.CIFAR10(root='./data', train=True, download=True,
-                                                 transform=train_transforms)
+                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                    # transforms.Normalize((0.4914, 0.4822, 0.4465), (0,2033, 0.1994, 0.2010))
+                    ])
+        train_data = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=train_transforms)
         test_data = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=test_transforms)
         self.num_cls =  len(train_data.classes)
         self.train_data_classes = train_data.classes
-        self.train_data = train_data.data
-        self.train_label = train_data.targets
+        self.train_data = torch.tensor(train_data.data).permute(0, 3, 1, 2)
+        self.train_label = torch.tensor(train_data.targets)
         self.train_data_size = train_data.data.shape[0]
         self.train_transforms = train_transforms
-        self.test_data = test_data.data
-        self.test_label = test_data.targets
+        self.test_data = torch.tensor(test_data.data).permute(0, 3, 1, 2)
+        self.test_label = torch.tensor(test_data.targets)
         self.test_data_size = test_data.data.shape[0]
-        self.test_transforms = test_transforms
+        self.test_transforms = test_transforms 
 
     def mnistDataSetConstruct(self, isIID):
         data_dir = r'./data/MNIST'

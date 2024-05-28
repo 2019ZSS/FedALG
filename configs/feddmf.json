@@ -1,0 +1,26 @@
+{
+    "alg": "feddmf", 
+    "gpu": "0", 
+    "num_of_clients": 10, 
+    "cfraction": 1, 
+    "epoch": 3, 
+    "batchsize": 20, 
+    "model_name": "cifar10_cnn", 
+    "learning_rate": 0.1, 
+    "dataset": "cifar10", 
+    "val_freq": 50, 
+    "save_freq": 50, 
+    "num_comm": 5, 
+    "save_path": "./checkpoints", 
+    "IID": 1, 
+    "beta": 0.99,   
+    "min_lr": 0.1, 
+    "weight_decay": 0.99, 
+    "shuffle": true, 
+    "eps": 1.0,
+    "epsilon": 0.001,
+    "hyper": 0.1,
+    "pre_t": 1, 
+    "init_model": "./checkpoints/parmas/IID_1/cifar10_feddmf_cifar10_cnn_10"
+
+}

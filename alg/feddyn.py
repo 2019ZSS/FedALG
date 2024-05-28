@@ -6,27 +6,17 @@ from tqdm import tqdm
 from utils import BaseServer
 
 
-class FedAVGServer(BaseServer):
+class FedDynServer(BaseServer):
 
     def __init__(self, args):
-        super(FedAVGServer, self).__init__(args=args)
+        super(FedDynServer, self).__init__(args=args)
         self.is_local_acc = args['is_local_acc'] if 'is_local_acc' in args else False
-        optimers = {}
-        for i in range(self.args['num_of_clients']):
-            opt_list = []
-            for name, params in self.net.named_parameters():
-                opt_d = {
-                    'params': params,
-                    'params_name': name,
-                }
-                opt_list.append(opt_d)
-            optimers['client{}'.format(i)] = torch.optim.SGD(opt_list, lr=self.args['learning_rate'])
-        self.optimers = optimers
+        self.dyn_alpha = args['dyn_alpha'] if 'dyn_alpha' in args else 0.001
 
     def run(self):
         accuracy_list = []
-        loss_list = []
         phi_list = []
+        loss_list = []
         if 'parmas_mode' in self.args:
             model_save_dir = './checkpoints/parmas/IID_{}/{}_{}_{}_{}_local_e_{}'.format(self.args['IID'], self.args['dataset'], self.args['alg'], 
                         self.args['model_name'], self.args['num_of_clients'], self.args['epoch'])
@@ -36,11 +26,6 @@ class FedAVGServer(BaseServer):
         accuracy, loss = self.eval(t=0)
         accuracy_list.append(accuracy)
         loss_list.append(loss)
-        max_bound = {
-            'max_local_grad_bound': 0,
-            'max_L_bound': 0
-        }
-        max_bound = None
         for t in range(self.num_comm):
             print("communicate round {}".format(t + 1))
             clients_in_comm, theta_list = self.sample()
@@ -48,8 +33,8 @@ class FedAVGServer(BaseServer):
             sum_parameters = None
             cur_phi = 0
             for client in tqdm(clients_in_comm):
-                local_parameters = self.myClients.clients_set[client].localUpdate(self.args['epoch'], self.args['batchsize'], self.net,
-                                                                            self.loss_func, self.optimers[client], self.global_parameters, max_bound)
+                local_parameters = self.myClients.clients_set[client].localUpdate_dyn(localEpoch=self.args['epoch'], localBatchSize=self.args['batchsize'], Net=self.net, lossFun=self.loss_func, 
+                                                                                       opti=self.optimers[client], global_parameters=self.global_parameters, dyn_alpha=self.dyn_alpha)
                 
                 if self.is_local_acc and t == self.num_comm - 1:
                     self.local_eval(t=t, local_parameters=local_parameters, client=client)
@@ -77,14 +62,11 @@ class FedAVGServer(BaseServer):
             print('accuracy: ' + str(accuracy) + "\n")
             self.test_txt.write("communicate round " + str(t + 1) + " ")
             self.test_txt.write('accuracy: ' + str(accuracy) + "\n") 
-            if max_bound is not None:
-                print('max_local_grad_bound={}, max_L_bound={}'.format(max_bound['max_local_grad_bound'], max_bound['max_L_bound']))
 
+        # self.test_txt.write('phi_list={}'.format(phi_list))
         s = 'dataset_{}_IID_{}_{}_{}_cli_{}_frac_{}_local_e_{}'.format(self.args['dataset'], self.args['IID'], self.args['alg'], 
                         self.args['model_name'], self.args['num_of_clients'], self.args["cfraction"], self.args['epoch'])
         self.test_txt.write(s + " start\n")
-        self.test_txt.write('phi_list={}'.format(phi_list))
-        self.test_txt.write("\n")
         self.test_txt.write('accuracy_list={}'.format(accuracy_list))
         self.test_txt.write("\n")
         self.test_txt.write('loss_list={}'.format(loss_list))
@@ -93,6 +75,5 @@ class FedAVGServer(BaseServer):
         print('phi_list={}'.format(phi_list))
         print('accuracy_list={}'.format(accuracy_list))
         print('loss_list={}'.format(loss_list))
-        if max_bound is not None:
-            print('max_local_grad_bound={}, max_L_bound={}'.format(max_bound['max_local_grad_bound'], max_bound['max_L_bound']))
+        
             

@@ -8,7 +8,7 @@ class Mnist_2NN(nn.Module):
         super().__init__()
         self.fc1 = nn.Linear(784, 200)
         self.fc2 = nn.Linear(200, 200)
-        self.fc3 = nn.Linear(200, num_outputs=10)
+        self.fc3 = nn.Linear(200, num_outputs)
 
     def forward(self, inputs):
         tensor = F.relu(self.fc1(inputs))
@@ -43,11 +43,30 @@ class LinearNet(torch.nn.Module):
 
     def __init__(self, num_inputs=784, num_outputs=10):
         super(LinearNet,self).__init__()
-        self.linear = torch.nn.Linear(num_inputs,num_outputs)
+        self.linear = torch.nn.Linear(num_inputs, num_outputs)
 
     def forward(self, X): 
         '''
         x shape = (, 28, 28)
         '''
         y = self.linear(X.view(X.shape[0],-1))
+        return y
+
+
+class Mnist_FNN(torch.nn.Module):
+
+    def __init__(self, num_inputs=784, num_outputs=10):
+        super(Mnist_FNN,self).__init__()
+        self.linear1 = torch.nn.Linear(num_inputs, 256)
+        self.dropout1 = torch.nn.Dropout(0.5)
+        self.linear2 = torch.nn.Linear(256, num_outputs)
+
+    def forward(self, X): 
+        '''
+        x shape = (, 28, 28)
+        '''
+        X = X.view(X.shape[0],-1)
+        y = self.linear1(X)
+        y = self.dropout1(y)
+        y = self.linear2(F.relu(y))
         return y
