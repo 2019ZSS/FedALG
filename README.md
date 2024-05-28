@@ -21,6 +21,8 @@ pip install -r requirements.txt
 1. MINST
 2. EMINST
 3. Cifar10
+4. Cifar100
+5. FMINST
 
 ### Usage
 
